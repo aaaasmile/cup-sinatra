@@ -494,9 +494,9 @@ end
 
 if $0 == __FILE__
   begin
-    puts "Starting the bot_sample"
+    puts "Starting the bot_player_creator"
     bot = CuperativaBot.new
-    bot.settings_filename = File.join(File.dirname(__FILE__), 'bot_sample/robot.yaml')
+    bot.settings_filename = File.join(File.dirname(__FILE__), 'bot_player_creator/robot.yaml')
     bot.log_debug
     bot.load_settings
     #bot.save_settings
