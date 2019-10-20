@@ -1,0 +1,29 @@
+---
+# list of supported and requested games (Briscola, Mariazza, Spazzino, Scopetta)
+# list of supported and requested games (Briscola, Mariazza, Spazzino, Scopetta)
+:engine: 
+#  - :tressette_game
+  - :briscola_game
+#  - :scopetta_game
+#  - :tressettein4_game
+#  - :mariazza_game
+#  - :briscolone_game
+#  - :spazzino_game
+#  - :tombolon_game
+
+:server_ip: localhost
+:server_port: 3000
+#:server_ip: cuperativa-2017.herokuapp.com
+#:server_port: 80
+:ws_prefix: 'ws' #ws or wss (websocket not or secure)#
+:admin_port: 3002 # for resend the last packet
+:log_level: :develop
+:login: robot1
+#:login: robot_champ
+:playfor_classment: true
+:password: <your password>
+:debug_server_messages: true
+#:log_level: :production
+:wait_time_info: 
+  :enabled: true
+  :havetoplay_time: 0.0

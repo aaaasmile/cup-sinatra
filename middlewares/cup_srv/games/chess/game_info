@@ -1,0 +1,20 @@
+---
+# informazioni sul gioco degli scacchi
+:name: Scacchi
+:desc: Gioco ddegli scacchi
+:key: :chess_game
+:class_name: BoardGfx
+:opt:
+  :target_points_segno:
+    :type: :textbox
+    :name: Punti vittoria segno
+    :val: 1
+  :num_segni_match:
+    :type: :textbox
+    :name: Segni in una partita
+    :val: 1
+:enabled: false
+:file_req: board_gfx.rb
+:num_of_players: 2
+
+

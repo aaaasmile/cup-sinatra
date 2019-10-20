@@ -1,0 +1,427 @@
+*** TODO ***
+
+== Middelware di sinatra
+- nuova versione del server con il nuovo messaggio LOGINOK:{json User} e il dettaglio
+impostato sul dettaglio user di CupUser
+- la key del database è salvata in options.yml, però il file locale non andrebbe
+neanche messo in source control, ma lasciato locale fuori da git. 
+- possibilità di salvare utenti e tutto il processo di registrazione.
+- classifiche che metterei in una sola tabella.
+- tabella user_roles, con user id e un ruolo come stringa. 
+Ruoli possibili predefiniti in ruby (admin,guest,free,premium,robot)
+
+== Lista di features da implementare
+- gestione tempo di gioco sul server: tempo max giocata, tempo max mano....
+- gestione utenti webserver: create account, check account
+- Quando un giocatore ha abbandonato il tavolo, bisognerebbe fare in modo
+    che altri giocatori raggiungano il tavolo senza che tutti lascino il tavolo
+    (utile se i giocatori sono >= 2).
+- unsubscribe user list quando si lascia il tab utenti [DONE]
+  * al ritorno sul tab utenti, si lancia un utenti list request solo dopo almeno 10 secondi [???]
+- Launcher per  visitare la pagina dell'invido dall'help, così come il manuale [DONE]
+- Rivincita con altri giochi
+- testare in modo automatico il gioco online
+
+== Feature implementate
+- [Mariazza]Scambio briscola da parte cpu solo se la carta è più alta [DONE]
+- refactoring della classe net_table_dlg, separando i dati dalla view [DONE]
+- testare in modo automatico il gioco locale [DONE]
+- task rimasti aperti nella debug-session [DONE]
+- task aperti sessione san [DONE]
+- opzioni mariazza: punteggio finale, numero segni per partita, [DONE]
+- algoritmo briscola troppo debole [DONE]
+- Mazzi di carte da una directory user [DONE]
+
+== Tempo sul server
+La scopetta è implementata come:
+5 secondi per effettuare una mano, 30 secondi di tempo complessivi per la
+giocata.
+In cuperativa si puo usare il principio come in scacchi il 30/5.
+- Implementazione sul server: una procedura che ogni 2 secondi fa il check
+della lista dei giocatori in attesa. Se il tempo a disposizione e' finito,
+viene mandato un comando all'altro giocatore che puo' vincere per time forfait.
+Occore pero' mandare, quando un giocatore ha giocato, anche il tempo rimanente
+sul server. Il tempo si puo' misurare in modo molto preciso usando time stamp
+ad ogni azione. Il check del server nel time slot di 2 secondi, serve solo
+per stabilire se il tempo e' finito. [??? NO]
+Il server non deve fare il check del client. Basta che memorizzi il time stamp
+del comando quando il client deve giocare. E' l'avversario che monitora il tempo
+dell'altro giocatore e se vede che il tempo è scaduto, richiede al server il 
+forfait per il tempo. A questo punto il server, usando il suo time stamp
+fa un controllo e in caso positivo assegna la vittoria a tavolino per il timeout.
+Quando un giocatore gioca, il server manda anche un timestamp a tutti i clients
+per sincronizzare il tempo.
+
+== Versioni future
+
+- aggiungi un menu al menu info che mostra in una finestra l'ultimo log fatto.
+- Invito sull'utente ad una partita
+  * implementare i comandi pg_invite... sul 
+    * client
+    * server
+- Lista nera per utente, escluso ospitexx
+- Bavaglio chat
+- update con patch: se il .tgz è nella stessa directory di cuperativa,
+    l'esecuzione del manifesto e l'update non va. Dovuto al fatto che
+    la directory src viene rinominata e dentro c'è il tgz con un altro path.
+- Punti avversario nella briscola come opzione
+- Mazzo di carte in tavola: ultima mano mostra una stringa che indica ultima mano,
+     oppure mostrare il numero delle carte sul mazzo.
+- Bisogna però salvare i logs in più files, altrimenti apena parte cuperativa
+     il log corrente cancella l'ultimo appena terminato.
+- I robot possono essere implementati in un solo file dove tutte le classi sono presenti
+     in quanto la class può contenere solo 3 linee: alg name, core name 
+- (rails) mettere la colonna :last_opponents in tutte le classifiche per limitare
+ l'assegnamento di punti contro gli stessi avversari, aggiungere anche la colonna
+abbandoni e togliere dalla mariazza e briscola la colonna segni_deuced
+- Spiegare il significato delle icone nella lista tavoli
+- lista tavoli: dividere in due la lista e mostra le opzioni in basso 
+quando si seleziona un tavolo
+- giocatore che visualizza un altra partita come spettatore. Ho già iniziato
+l'implementazione con il tab che è solo stato reso invisibile. 
+- reconnect: riprende il gioco da dove era stato sospeso
+      - Iniziato con la briscola.
+
+== Versione 0.8.0
+
+- opzioni per il gioco contro il computer. Uso nel core e finestra di dialogo
+  nella finestra del gioco.
+     * Briscola [x] [ ]
+     * Spazzino [ ] [ ]
+     * Scopetta [ ] [ ]
+     * Briscolone [ ] [ ]
+- sfondo colori spazzino non vanno bene: verde troppo chiaro, rosso troppo lucente
+- collegamento con lo stesso nome: uno viene mandato via (ok)
+   ma poi la chat globale non va più.
+- rivincita ad un altro gioco
+- rivincita ad un altro gioco col robot non va
+- rivincita altro gioco bottone disabilitato
+- deck taken card deve essere di priorità maggiore
+- label briscola su due righe
+- Algoritmo scopetta come master [DONE]
+- Bug in Monitor synchronize  quando ci sono molti messaggi in coda che chiamano process.nex_message [DONE]
+- tressette a due giocatori [DONE]
+- Crash quando nelle opzioni si cambia un nome [DONE]
+- Tombolon display ultima carta sul mazzo [DONE]
+- Messaggio rivincita deve comparire anche nella chat [DONE]
+
+
+== Versione 0.7.5 (Pubblicata 01.05.2010)
+- spazzino: alla fine della mano non deve aggiustare le carte sul tavolo, ma giocarle
+  negli spazi vuoti [DONE]
+- briscolone in rete [DONE]
+- l'animazione quando si gioca una carta è lenta nel gioco di rete.
+    Dovuto al fatto che bisogna aspettare la risposta del server per muovere
+    la carta. L'animazione va messa dopo algplayed e non in onalg_hasplayed.
+    Da notare che il problema sussiste solo nella versione di rete (design non ottimale)
+	in quanto nella versione locale onalg_hasplayed viene chiamato all'interno di
+	algplayed. Nella notifica di rete questo avviene con un po' di ritardo.
+         * Briscola [DONE]
+         * Spazzino [DONE]
+         * Mariazza [DONE]
+- autogfx briscola_game: non cambiano le carte quando gioca la cpu
+- la velocità dell'animazione è troppo differente quando è verticale e troppo 
+veloce quando è diagonale (spazzino, tombolon..) [DONE]
+-spazzino&co: manca il rumore fruscio carte [DONE]
+- tutti: distribuzione carte deve fare il rumore fino alla fine [DONE]
+-tombolon: dalla seconda giocata non mescola più le carte [DONE]
+- chat tavolo che scompare alla seconda partita in rete [DONE].
+
+== Versione 0.7.1 [pubblicata il 30.6.2009]
+
+- tombolon distribuzione delle carte, vengono sempre distribuite, come animazione, per primo
+al computer anche quando è mazziere. [DONE]
+- rimuovere dipendenza con oldnewlocation [DONE]
+- numero di carte rimanenti sul mazzo da briscola [DONE]
+- mariazza ho tolto il blocco dei messagebox. Però bisogna trovare un modo
+di mostrare più messagebox contemporaneamente. Perlomeno usare quella della smazzata finita. [DONE]
+- update testare usando l'aggiornamento online [DONE]
+- update: la versione aggiornata non viene mostrata. Si vede 0.0.0.0.  [DONE]
+- update: la percentuala della barra proprio non è giusta.  [DONE]
+- mariazza non cancella i bottoni al termine della partita. [DONE]
+- mariazza sembra non aggiorna la classifica. (Errore nel core) [DONE]
+- tombolon non termina la partita chi raggiunge prima i 31 punti. [DONE]
+- spazzino/scopetta nel caso di 33 pari la vittoria è assegnata lo stesso [DONE]
+- la lista degli utenti non viene caricata [DONE]
+- scopetta, spazzino, tombolon: online manca la chat se la partiva non è per la 
+classifica. [DONE]
+- scopetta, spazzino smazzata fine dialogbox [DONE]
+- update del client tramite tgz non va in quanto non è possibile
+spostare la directory src. Si ha un permission denied. [DONE]
+- update testare usando il file tgz [DONE]
+
+
+== Versione 0.7.0 [pubblicata il 6.6.2009]
+
+- scopetta: il colore di scope giallo va cambiato in bianco [DONE]
+- scopetta, spazzino: partita finita crash [DONE]
+- Tombolon: la schermata del punteggio va migliorata [DONE]
+- Cambia colore allo sfondo nella:
+            - scopetta [DONE]
+            - spazzino [DONE]
+
+- punteggio elo:
+    - salvare il punteggio nella tabella mysql (da testare)
+          - briscola [DONE]
+          - mariazza [DONE]
+          - spazzino [DONE]
+          - scopetta [DONE]
+          - tombolon [DONE]
+    - (rails) creare per ogni gioco una tabella classifica in quanto non si pò fare
+         una query per ogni gioco e per ogni utente sulla stessa tabella [DONE] 
+
+- Tombolon: distribuisce le carte sempre dal basso, anche quando il mazzo
+è dell'avversario [DONE]
+- Briscola: nel resize del canvas, le carte giocate sul tavolo rimangono 
+sempre nello stesso punto [DONE]
+- Server: guest non può partecipare a partite di classifica o crearne una [DONE]
+- Server: usa il messaggio pg_join_reject2 per segnalare gli errori [DONE]
+- Connessione al server con un login vuoto, il client deve mostrare un log di 
+disconnessione e non solo il benvenuto. [DONE]
+- Quando viene mostrato la picula, la scritta in giallo si vede poco [DONE]
+- Registrazione utente con supporto punteggi
+  - check password utente non va [DONE]
+  - applicazione rails per registrare [DONE]
+  - cambiare la maschera login per avere un pulsante 
+                - di registrazione [DONE] 
+                - salvataggio psw [DONE]
+- Tombolon partita terminata: lo sfondo non diventa grigio. [DONE]
+- Pannello gioco visibile solo per la Mariazza:
+      - Metti i pulsanti per le accuse e i comandi [DONE]
+      - aggiungi la possibilità di avere un pannello extra controllato dal gamegfx [DONE]
+      - togli il vecchio pannello [DONE] 
+- chat tavolo da mostrare solo quando si ha un gioco in rete [DONE]
+- giocatore del tipo computer non viene segnalato al client [DONE]
+- Resize di cuperativa non tiene lo splitter basso visibile [DONE]
+    - (rails) mettere anche computer, lettera 'C' nel'update user [DONE]
+    - (rails) reset password form è in inglese [DONE]
+    - (rails) reset password non funziona anche se dice che è stata resettata:
+          Sol: gli utenti per i quali avevo cambiato la password non erano attivi [DONE]
+- Tombolon gli onori non sono giusti, c'è il due di spade e le spade valgono 1 punto
+invece di 2 [DONE]
+- Tombolon in rete: cmdh_onalg_gameinfo non va [DONE]
+- BUG Tombolon: alla fine della partita predefinita, il 7 non seleziona nessuna carta  [DONE]
+- partita relax [DONE]
+- mettere le immagini degli scacchi nelle risorse [DONE]
+- le partite ricevute prima di iniziarne una nuova, ricompaiono nella tabella delle partite
+  quando si è lasciato il tavolo di gioco. Problema sul client. [DONE]
+
+  - Interfaccie pg_list2, pg_add2, pg_create2 implementate usando yaml [DONE]
+  - Gioco privato non funziona: 
+         - manca il display del pin dove viene creato [DONE]
+         - manca il dialogbox dove si dovrebbe accedere [DONE]
+  - Quando si crea un nuovo tavolo bisogna aggiungere la sezione classifica 
+    nella dialogbox. [DONE]
+  - mettere le opzioni in una nuova dialogbox che viene  [DONE]
+      mostrata con un pulsante nella dialogbox crea nuova partita. [DONE]
+        - togliere privè e metterlo nella nuova dialogbox opzioni [DONE]
+- Gioco del Tobolon (vedi spazzino.txt) [DONE]
+- Tombolon server non va [DONE]
+- BUGFIXSCOPA: ultima carta non assegnata con le altre in tavola [DONE]
+- Il server deve scambiare un ping col client. Altrimenti succede che ci si scollega
+dopo 10 minuti di totale inattività. [DONE]
+- BUG: il gioco privato non va [DONE]
+- BUG col  tasto destro si eliminano tutti i giochi e non solo quelli creati
+     (solo quando si rimuove il gioco 2 di un altro giocatore, quando ce n'è uno solo
+      funziona bene) [DONE]
+- robot della scopa, meglio come multirobot dello spazzino, il quale propone 2 giochi
+    la scopa e lo spazziono. Lo stesso per la briscola: briscola e mariazza.
+        * redisign [DONE]
+        * mulrirobot [DONE]
+        * Il robot della briscola non va (non andava il gioco in rete sul nuovo gfx) [DONE] 
+        * Il robot della mariazza, quando scambia il 7 con la carta in tavola, gioca il 7
+	  che non ha più in mano. Quindi si pianta (interfaccia alg del robots non completa). [DONE]
+
+
+== Versione 0.6.1  [pubblicata il 22.12.08]
+
+- cambiamenti di starna (font, ; nelle opzioni e animazioni) [DONE]
+- update server: usare un nuovo metodo dove i parametri sono mandati per mezzo di
+      hash in yaml. Così si può aggiornare l'interfaccia sul server senza cambiare il client
+      [DONE]
+- BUGFIXUPDATE durante l'update dalla versione 0_5_4 alla versione 0_6_0 
+     sotto vista non funziona:
+   - descrizione che occorre usare i requisiti di amministratore [DONE]
+   - nel setup cambiare la directory di installazione a c:\cuperativa [DONE]
+- Autogfx per la scopetta non va [DONE]
+- BUGFIXSPAZ: funzione combi tralascia delle combinazioni [DONE]
+- BUGFIXSPAZ: spazzino_gfx usa l'opzione options["cpualgo"] per testare una partita
+     remota dove ho avuto un problema col client (spazzino2p_126_2008_11_27_20_38_44.log e
+     partita del s27_gc1_2008_11_21_21_49_29-savedmatch.yaml) (selezione multipla non colora in modo giusto) 
+     [DONE]
+- Collegamento al server che usa prima l'ultima opzione provata. Di default invido.it
+     se poi il server è down oppure pieno si collega a railsplayground. [DONE]
+- Aggiorna usando la patch non usa il thread e la dilogbox modalless 
+      come l'update dal server [DONE]
+- mariazza alg è tropo veloce quando gioca, nella briscola aspetta un po'[DONE]
+- Mettere le animazioni nella mariazza (tutte) [DONE] 
+- Logger nel Server delle partita mariazza non salva le rivincite, solo la prima partita. [DONE]
+- deploy installer: l'elenco dei giochi non è automatico, ma codificato. [DONE]
+- BUGFIXSPAZ: seconda smazzata viene assegnata una picula in modo non corretto all'inizio. [DONE]
+- Server update: creare una tabella per gli update, per esempio
+     se la versione attuale diventa la 0_6_1, dalla versione 0_6_0 si ha bisogno
+     solo della sorgente. Dalla versione 0_5_4 si ha bisogno di una full. [DONE]
+- scopetta (vedi spazzino.txt per i dettagli) [DONE]
+- scopa versione server [DONE]
+- Mettere le animazioni nella briscola distribuzione carte e carta giocata [DONE]
+- Nomi avversari nella cuperativa a caso [DONE]
+- scopagfx quando gioca una carta viene mostrata una carta a sfondo grigio, 
+     mostrare invece nulla [DONE]
+- deploy nsi usa il manuale.chm dal path vecchio e non il nuovo nel res/help  [INVALID: invece è già così]
+
+
+== Per la versione 0.6.0  [pubblicata il 20.11.08]
+- Guida sotto windows non funziona (problema col path 'c:/program files') [DONE]
+- Spazzino: posizionare le carte sul tavolo in modo centrato. Le prime carte partono dal 
+centro per poi uscire verso l'esterno [DONE]
+- Terminare di adattare gfx [DONE]
+- Adattare core [DONE]
+- Adattare algoritmo [DONE]
+- Cambiare l'interpretazione del metodo onalg_player_has_played in  AlgCpuPlayerBase. 
+card e' un array di carte lbl, dove la prima e' la carta giocata, il resto sono le carte
+prese. [DONE]
+- rete: accesso alla coda dei messaggi deve avvenire con un mutex [DONE]
+- [Serve? credo di no]Aggiungere all'interfaccia Gfx -> Core il metodo alg_player_cardplay_withtake
+- Server spazzino [DONE]
+- Briscola: creare un client solo testo che si colleghi al server, giochi una partita
+provando i comandi per vedere se funziona il server [DONE]
+- Implementare rimozione gioco pg sul client [DONE]
+- Client/Server: possibilità di creare una partita privata, vale a dire solo ad inviti
+  * server aggiorna pg_item col clausola 'private' [DONE]
+- Filtro parolacce sul client [DONE]
+- About dialogbox che usa il launcher con l'accesso al sito invido.it [DONE]
+- Logger della connesione dovrebbe mettere tempo di connessione e disconnessione [DONE]
+- BUG: Problema con la doppia mariazza  dichiarata come secondo 
+(vedi file  cuperativa_app_fabri_11_08.log dove i problemi sono contrassegnati con ---) [DONE]
+
+== Versione 0.5.4 [pubblicata il 6.6.08]
+- Deploy: generare il nsis per win32 in modo automatico
+    * bug: il setup installa tutti i files nella stessa dir [DONE]
+- Log di un eventuale crash nella versione windows [DONE]
+- Funzione applica nuova versione [DONE]
+- Implementare l'update automatico [DONE]
+    * generatore di pacchetti sorgenti pronti da mettere sul server [DONE]
+    * deploy di source e resource come archivio tgz, anche se non usato come tgz [DONE]
+    * cuperativa loader come piattaforma che scompatta i tgz di source e res. [DONE]
+    * comandi server al client che indicano (manifest):
+        * dove si trova il file da scaricare (link) [DONE]
+        * aggiornamento del file di deploy [DONE]
+        * restart al termine dell'update [ONLY MANUAL]
+- Mettere le carte nella piattaforma e non nel pacchetto res. In res lasciare solo
+ le immaginirelative ai giochi [INVALID in quanto ogni utente può cambiare le immagini] 
+- Deploy deve creare la directory cup_platform sotto la dir platform [NON CAPITO]
+- BUG: doppie dichiarazioni di mariazze, scomparsi 20 punti [DONE]
+- Deployment sotto windows col nuovo script [DONE]
+- Server: creare un nal_srv_base per i vari nal server specifici [DONE]
+- Quando il click sulla carta viene ignorato, bisognerebbe dare un feedback visivo [DONE]
+- BUG: quando inizia il secondo segno in modo cpu, non si vedono i dorsi delle carte. [DONE]
+- Scambiare le posizioni dei tasti lascia e abbandona [DONE]
+- Verifica che quando si comincia una partita tutti i pending game 
+siano cancellati sul server [DONE]
+
+== Versione 0.5.3 (branches/briscola_052) merged trunk on 14.04
+Mentre il resto è lasciato sul trunk
+La versione 0.5.3 viene implementata sul branch branches/briscola_052
+- Animazione per le carte giocate verso il giocatore che prende. [DONE]
+- Aggiustamenti alla grafica proposti da Domenico Starna:
+    * carte al centro e mostra carte avversario [DONE]
+    * mostra player on turn anche per alg cpu [DONE]
+    * aggiusta posizione mazzo e nome avversario [DONE]
+    * punteggio coi segni in modo grafico [DONE]
+    * scritta sulla dialogbox alla fine del segno da cambiare con fine smazzata [DONE]
+- Resize del tavolo deve spostare anche le posizioni delle carte giocate in mezzo [DONE]
+
+== Versione 0.5.2 (trunk)
+- Client/Server: possibilità di creare una partita privata, vale a dire solo ad inviti
+  * client manda il messaggio [DONE]
+- Invito sull'utente ad una partita
+  * definire il protocollo [DONE]
+- Briscola: Core non riconosce il pareggio [DONE]
+- Briscola: premendo alla svelta su una carta va a finire che si gioca una carta
+appena giocata causando un warnings [DONE] (un solo clic ammesso)
+- Core/server notifica il client che ha giocato una carta non valida. Questo è 
+importante per non bloccare il client sulla possibilità di giocare una carta. [DONE]
+
+== Per la versione 0.5.1 (Server only)
+- BUG SERVER: rivincita briscola non funziona bene, usa le opzioni della mariazza. [DONE]
+
+== Per la versione 0.5.0
+Questa versione è stata pubblicata su rubyforge
+- Flick free: doppio buffering sul canvas [DONE]
+- Briscola in 2 client [DONE]
+- Briscola in 2: problema con la distribuzione delle carte, il mazzo fiisce prima [DONE]
+
+== Per la versione 0.4.7  [DONE 28.02.2008]
+- Server: aggiungere la chiamata alla routine che aggiorna l'IP ogni 10 minuti [DONE]
+- Algoritmo di gioco migliore [DONE]
+- Chat tavolo non finisce quando finisce la partita:
+   * Aggiunti nuovi stati per gestire il dopo partita [DONE]
+   * Aggiunti comandi generici client gioco in rete:
+      * lascia il tavolo [DONE]
+      * abbandona gioco [DONE]
+      * rivincita - client [DONE]
+   * State machine con lo stato on_table_end [DONE]
+   * Server supporto nuovi comandi:
+      * rivincita [DONE]
+        * bisogna vedere come fare nel server_core,
+          poi in game_in_prog e sul nal_server. La gestione degli utenti
+          che vogliono rigiocare si potrebbe fare game_in_prog, poi nel nal_server
+          bisogna gestire il restart, qui bisogna fare un new del core. [DONE]
+      * lascia il tavolo. Vedi se l'indice del tavolo viene effettivamente
+        liberato al momento di lasciare il tavolo da parte di tutti i
+        giocatori [DONE]
+      * abbandona gioco [DONE]
+- BUG SERVER: def game_inprog_end(ix_game) file cup_serv_core.rb [DONE]
+- Un giocatore in un game network non puo' usare i pg games, cancellare la pg_table [DONE]
+- Finire la ridisposizione della view network [DONE]
+- Refactoring della funzione user_list_info nel file view_net_conn.rb [DONE]
+- Icons sui pulsanti di comando [DONE]
+- Refactory: state machine nel modello. [DONE]
+
+    ----- questi invece quello che e' gia' stato fatto (versione 0.4.2 mai pubblicata) -----
+
+- Refactory: introduzione del modello per i dati dei pending game
+- Refactory: net_client_gui diventa solo un controllo, mentre cuperativa_gui
+  e net_conn_view diventano le view.
+- Opzioni: carte, nomi [DONE]
+- Mazzi di carte: bergamo, milano, napoli, sicilia, treviso [DONE]
+- Correzione bug algoritmo dichiarazione mariazza di seconda mano [DONE]
+- user name "ricu al satradur" non reso bene nella chat [DONE]
+- Suono inizio partita a richiesta[DONE]
+- Game recorder [DONE]
+- Unit test [DONE]
+- Server: Migliore gestione dei traces, con trace  tavolo e trace server globale [DONE]
+- Server: Riorganizzazione codice per supporto comune con server http [DONE]
+- BUG: viene offerto di cambiare il sette anche quando la briscola non è più in tavola
+  in quanto siamo alle ultime 5 carte. [DONE]
+- Miglioria: log Scambio briscola OK _7s -> _As [DONE]
+- Scambio briscola da confermare con la dialogbox. Al momento l'ultima implementazione
+  pianta l'algoritmo cpu [DONE]
+- Finire il redisign della gui: [DONE]
+   * Pulsante connessione aggiungere [DONE]
+   * Disabilitare i tasti disconnetti e crea quando non si e' connessi [DONE]
+   * Aggiungere una label in alto come titolo, invece di scrivere sulla titlebar [DONE]
+
+== Per la versione 0.4.1
+1) Dialogbox fine partita va aggiustata come la error message box sulla versione
+del client [DONE]
+2) Al momento del collegamento bisogna mostrare quanti e chi sono gli utenti [DONE]
+3) Prende l'indirizzo del server da railsplayground [DONE]
+4) Cambia la dialogbox della connessione oscurando ip server e port
+   ma qui si mette una check box advanced [DONE]
+5) Web service deve avere la possibilita' di aggiornare le info server
+   - control deve avere delete entry [DONE]
+   - control create deve creare tutti  i campi [DONE]
+6) Messagebox nel canvas dati i problemi con col messagebox di fox  [DONE]
+
+== Versione 0.3.2
+- supporto versione remota sul client  [DONE]
+- segnala i punti durante la partita [DONE]
+- segnala i segni durante la partita offline [DONE]
+- segnala i segni durante la partita in rete [DONE]
+- Mettere altri mazzi di carte [DONE]
+- finire il deploy tool [DONE]
+- salvare una partita in formato simil pgn [DONE]
+- opzioni generali con : tipo carte, tipo gioco,  nomi giocatori. (nome network utente
+fa parte di un account che viene memorizzato al momento del connect) [DONE]
+

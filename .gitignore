@@ -1,0 +1,16 @@
+*.log
+*.zip
+middlewares/cup_srv/serverlogs/*.log
+middlewares/cup_srv/serverlogs/*
+*.pid
+node_modules/
+npm-debug.log*
+middlewares/robots/*.log
+middlewares/robots/*/robot.yaml
+middlewares/robots/*/robot.yaml_local
+middlewares/robots/*/robot.yaml_target
+middlewares/cup_srv/options*.yaml
+/coregame_log
+/reference
+/sql
+Gemfile.lock

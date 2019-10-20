@@ -1,0 +1,474 @@
+==== Protocollo di del software cuperativa ====
+
+I messaggi creati usando JSON.create(), si riferiscono alla sinstassi in ruby.
+
+== Connessione al server ==
+Il server è predisposto per ricevere una connessione via websocket, ws oppure wss.
+Esempio: wss://localhost:5471/cup/websocket
+
+ - Comando Ver
+   Questo comando prevede 2 numeri per la versione major.minor.
+   Il major indica un cambio di versione dove è necessario un cambio
+   contemporaneo del client. Il minor sono features che non influenzano
+   il funzionamento di client datati.
+ - Controllo versione
+	Il controllo della versione avviene sul lato client. Così il client sa che 
+	è inutile continuare a comunicare col server. Al server non interessa quale
+	client si collega e di che tipo è. 
+
+C ----- <websocket handshake> ----------------- > S
+C <---- Ver: "1.1" ------------------------- S
+C <---- Info: "Benvenuto sul server" ------- S
+Il server non processa nessun comando proveniente dal client se prima non è stato
+eseguito un login con successo. In questo caso la connessione è chiusa dal server.
+
+== Login ==
+C ------ Login: JSON.create{name: <name user>, password: <password>, token: <session token>} -----> S
+C <------ Login_ok: JSON.create{ :name => <name user>, :token => token, :roles => roles} ------------ S
+C <------ Login_error: JSON.create{ :code => code_err, :info =><info message>} ------------ S
+Login error code: 1: password o login invalidi, 2 utente già connesso, 3 ospite già connesso
+
+== Logout ==
+C ------ Logout: JSON.create{name: <name user>} -----> S
+C <------ Logout_ok: JSON.create{ :name => <name user>} ------------ S
+
+== Sign Up / Modifica User ===
+C ---------- User_op: JSON.create(type: insert/modify, login: <login name>, old_password: <old_password>,
+                                  password: <password>, fullname: <fullname>, 
+                                  email: <email>, gender:<g>, deck_name:<deck_name>)  ---------> S
+C <--------- User_op_result: JSON.create(login: <login name>, is_ok: <true/false>, error_code: <code>, error_msg: <error_msg>) ---- S
+C ---------- User_exist: JSON.create(login: <login name>) ----- S
+C <--------- User_exist_result: JSON.create(login: <login name>, exists: <true/false>) ----- S
+Codici errori:
+1: impossibile aggiungere l'utente
+2: impossibile modificare l'utente
+
+== Lista tavoli (pending games) ==
+Quando un utente si collega ed effettua il login con successo, deve entrare
+nel modo observe sul server, che equivale a mostrare la tabella dei
+giochi sul client. Per fare questo il client fa una richiesta tipo
+pending_games_req. Il server mette il client nella lista degli osservatori
+pending e come risposta manda l'elenco dei pending games.
+Questo elenco viene aggiornato dal server di volta in volta che la situazione
+di un pending game cambia. Quando un giocatore comincia una partita oppure
+si scollega, allora il client esce da questa lista e il server non manda
+più aggiornamenti. Supponendo che una richiesta di gioco non superi i 75
+caratteri, per restare nei 2Kb per ogni messaggio si possono mandare,
+in un colpo solo, al massimo 25 richieste. Questo è limitante, il protocollo
+deve tener conto che ci siano più messaggi concatenati di questo tipo.
+
+C ------ pendig_games_req2 ----> S
+C <------ pg_list2:  JSON.create{ ------- S
+             :type => :pgamelist | :userlist : | :gameviewlist
+             :slice => 0...N
+             :slice_state => :last | :inlist
+             :pgs => [{L'hash è lo stesso del messaggio pg_add2, mentre per gameviewlist vedi la sezione spettatori},..., ]
+             }
+             La slice size in questo caso potrebbe essere di 20 unità
+
+
+Ora che il client si è registrato nella pending_games list, riceverà dal server
+i messaggi che potranno essere utilizzati per aggiornare questa lista.
+- Rimozione di una richiesta.
+Quando un gioco inizia, esso non fa più parte della lista della richieste dei giochi.
+Il server manda allora questo comando:
+
+C <---------- pg_remove: 33|-1 ---------- S
+Server notifica di rimuovere la richiesta di indice 33. Se il valore
+è -1 allora vengono rimossi tutti i giochi creati dall'utente.
+
+Server informa che è stata aggiunta una nuova partita:
+C <-------- pg_add2: JSON.create({              ------------------ S
+        :index => 35,
+        :user => "Pioppa"
+        :user_type => :user | :computer | :user_female
+        :user_score => 1000
+        :game => "Mariazza"
+        :prive => true/false
+        :class => true/false
+        :opt_game => {:target_points=>{:type=>:textbox, :name=>"Punti vittoria", :val=>21}},
+        :players =>[pioppa]
+                                            })   
+
+
+Gestione indici richieste partite lato server. Quando una partita inizia,
+un'indice si libera per una successiva richiesta. Per evitare problemi
+di aggiornamento col client, si mette quest'indice in coda e verrà riutilizzato
+per ultimo. Per partire si potrebbero usare un massimo di 200 indici. 
+
+Per i giochi che prevedono più di 2 giocatori, il campo utenti collegati
+si deve aggiornare di volta in volta che un giocatre si collega.
+
+Per questo si usa il messaggio
+C <---------- pg_player_conn: 33,pioppa ---------- S
+
+Allo stesso modo se un utente lascia il gioco
+C <---------- pg_player_leave: 33,pioppa ---------- S
+
+== Lista Utenti ==
+
+C ----------- users_connect_req -------> S
+Richiede la lista degli utenti collegati al server e rimane attivo col monitoraggio
+dei cambiamenti in questa lista. Questo messaggio è usato dai robots, quindi questo
+tipo di richiesta, pur essendo obsoleta, è ancora utilizzata.
+I nuovi client dovrebbero usare il nuovo: users_connect_req2
+
+C <------ user_list: 0,eof; pioppa, 1, G, 0;galu,2,P,1000;toro,5,A,1200; --- S
+Lista degli utenti collegati al server. I records sono separati da ; mentre
+i campi da virgola. Il primo campo e' il nick, poi il lag (da 1 scarso a 5 ottimo)
+Poi segue il tipo (G: guest, P: giocatore registrato, A: amministratore).
+Una lista vuota viene mandata col comando:
+C <------ user_list: 0,empty,empty; ------- S
+Usa il doppio empty per evitare di confondere il nickname empty
+
+C <------- user_removed: pioppa ---------------------------------- S
+rimuove un utente dalla list
+
+C <------- user_add: pioppa, 1, G, 0 ---------------------------------- S
+aggiunge un nuovo utente alla lista
+
+C ----------- user_list_unsub -------> S
+rimuove il client dalla lista che monitora gli utenti
+
+
+== Crea tavolo gioco ==
+
+Un client può mandare una sola richiesta per tipo di gioco.
+Ora il messaggio pg_create diventa:
+C1 -------- pg_create2: JSON.create({         :game => gioco_name,
+                                              :prive => {val =>true/false, pin =>"1234"}
+                                              :class => true/false
+                                              :opt_game => {<game specific option hash>}
+                                            })    -----------------------> S
+
+gioco_name è una delle seguenti stringhe (apici non vengono mandati):
+'Mariazza', 'Briscola', 'Spazzino', 'Tombolon', 'Scopetta'
+
+
+Chi ha costruito il gioco, e solo lui, può rimuoverlo con il comando:
+C -------- pg_remove_req: index --------------> S
+La risposta del server sarà come indicata nella sezione 2)
+
+== Siedi al tavolo e comincia la partita ==
+Il client che desidera accettare una nuova richiesta di partita lo può fare col
+seguente comando (C1 è il client 1 che ha creato il gioco, C2 è client 2 che 
+accetta la partita):
+
+C2 (tender) -------- pg_join: index --------------> S
+index è il numero dell'indice della richiesta di partita  mandata con la lista
+delle richieste delle partite.
+
+
+C2 (tender) -------- pg_join_pin: index, pin --------------> S
+index è il numero dell'indice della richiesta di partita  mandata con la lista
+delle richieste delle partite. Pin è il pin settato dal creatore del gioco.
+Questo messaggio serve per fare il join di un pg privato
+
+Ora bisogna informare lo user che ha eseguito la richiesta
+al quale il server manda la richiesta:
+
+
+C1 (Creator) <-------- pg_join_tender: user_name, index_game ----------- S
+
+In questa fase si distinguono due possibili risposte
+(**) Se il client che ha creato il gioco accetta lo sfidante risponde con
+
+C1 (Creator) -------- pg_join_ok: user_name, index_game -----------> S 
+
+Il server risponde al richiedente(tender) con:
+
+C2 (tender) <-------- pg_join_ok: index ----------- S
+
+Tornando alla fase (**) il client che ha creato il gioco può
+rifiutare l'utente che esegue la richiesta, in questo caso il client
+risponde con:
+(***)
+
+C1 (Creator) -------- pg_join_reject: user_name -----------> S
+
+Il server deve allora rispondere al richiedente con:
+
+C2 (tender) <-------- pg_join_reject2: JSON.create({:ix => pg_index, 
+                                                    :err_code => error_code}) ----------- S
+Codici errori:
+1: indice gioco non trovato
+2: non e' possibile partecipare ad un gioco creato da se stessi
+3: non e' possibile partecipare al gioco privato 
+4: non e' possibile partecipare: gioco valido per la classifica, disponibile solo per giocatori registrati 
+5: qualcun altro sta cercando di giocare questa partita, spiacenti la richiesta non puo' essere accettata
+6: partita non valida
+7: indice gioco non trovato
+8: Solo il creatore del gioco puo' accettare giocatori
+9: Creatore del gioco disconnesso
+11: creatore del gioco disconnesso
+12: Tender disconnesso 
+
+
+In questo modo la richiesta rimane valida e nella banned list del pendig
+game item sul server ci si aggiunge lo user name dell'utente indesiderato
+
+Quando il server manda al client pg_join_ok esso rimuove il client
+dalla lista degli osservatori delle richieste di partite. Rimuoverà
+anche tutte le ulteriori richieste fatte dai client partecipnti alla partita.
+In un gioco in due come la mariazza, l'inizio della partita è automatico
+con l'invio della richiesta. Ora i messaggi del server seguono l'andamento
+del core del gioco in questione. Se si prevede che il richidente possa
+esercitare un veto sull'utente che vuole accettare la sfida, per esempio con
+una banned list, allora il server esegue un reject del join. Lo stesso accade
+se un'altro utente è stato più veloce nell'accettare la sfida (contemporaneità
+della richiesta) e uno dei due riceverà il reject. Il client che riceve
+il reject interpreta il comando come un pg_remove (vedi sopra) 
+
+
+Non dimenticare di eliminare tutti i pendig game associati ad un utente
+quando egli si scollega dal server.
+
+
+== Invita un giocatore a partecipare ad un gioco ==
+Quando un client crea un gioco, può invitare altri utenti al proprio gioco
+
+C1 --------- pg_invite_req: index, user_name_inviter, user_name_invited --> S
+Se il server vede che la richiesta può essere inoltrata allora il client 2 riceve:
+C2 <-------- pg_invite_req: index, user_name_inviter, user_name_invited --- S
+Se C2 accetta la richiesta, allora la risposta è:
+(*)
+C2 --------  pg_invite_rsp_ok: index, user_name_invited ---> S
+Il server rigira la risposta all'invitante
+C1 <--------  pg_invite_rsp_ok: index, user_name_invited --- S 
+A questo punto il gioco può partire come nel caso di pg_join
+Tornando al punto (*) C2 può rifiutare la l'invito. Lo fa con:
+C2 --------  pg_invite_rsp_declined: index, user_name_invited ---> S
+Il server rigira la risposta all'invitante
+C1 <--------  pg_invite_declined: index, user_name_invited, reasoncode --- S 
+
+
+== Liste ==
+
+TODO: non solo la risposta deve essere del tipo list2, ma anche la richiesta
+
+a) LIST2 : invio della lista
+C <------ list2:  JSON.create{ ------- S
+             :type => :pgamelist | :userlist : | :gameviewlist
+             :slice => 0...N
+             :slice_state => :last | :inlist
+             :detail => [{L'hash è lo stesso è specifico del tipo di lista]
+             }
+
+b) LIST2_ADD
+C <------ list2_add:  JSON.create{ ------- S
+             :type => :pgamelist | :userlist : | :gameviewlist
+             :detail => {L'hash è lo stesso è specifico del tipo di lista}
+             }
+
+c) LIST2_REMOVE
+C <------ list2_remove:  JSON.create{ ------- S
+             :type => :pgamelist | :userlist : | :gameviewlist
+             :detail => {L'hash è lo stesso è specifico del tipo di lista}
+             }
+
+
+5.5) Spettatori
+(Protocollo non ancora implementato fino in fondo)
+
+C2 -------- game_view: JSON.create({
+                :cmd => :start_view | :stop_view | :req_list | :serv_resp
+                :index => index,
+                :resp_detail => {:result => {:ok | :failure}, :erro_info => error_index}
+               })  --------------> S
+:start_view
+Comando che consente di vedere un partita come spettatore.
+Index è il numero dell'indice della partita in gioco
+
+:stop_view 
+Comando per smetter di vedere un partita come spettatore.
+Index è il numero dell'indice della partita in gioco
+
+:serv_resp 
+risposta del server.
+
+:req_list  
+Comando per richiedere la lista dei giochi in esecuzione
+
+
+L'elemento che va a finire in pg_list2 è:
+                     { :index => pg_index,
+                       :players => [plname1, plname2,...]
+                       :viewers => [plname1, plname2,...},
+                       :is_classmentgame => true|false,
+                       :game_name => game_name,
+                     }
+
+
+
+== Azioni disponibili durante una partita ==
+
+C -------- resign_game: index -----------> S
+usato per dare forfait nella partita attuale
+NOTA: la notifica del forfait avviene attraverso l'algoritmo
+Informare il client che un giocatore ha abbandonato non serve.
+
+C1 -------- restart_game: index -----------> S
+Usato dal client per proporre la rivincita della partita appena effettuata 
+C2 <-------- restart_game: index, user_name ----------- S
+il server notifica la volontà di un giocatore ad effettuare la rivincita
+Quando tutti i giocatori al tavolo confermano la loro rivincita la partita
+riparte in modo automatico
+
+C1 -------- leave_table: index -----------> S
+Il client lascia il tavolo appena occupato
+C2 <-------- leave_table_ntfy: index, user_name ----------- S
+Il server notifica che un giocatore che era seduto al tavolo lo ha lasciato
+
+== Rivincita ad un altro gioco ==
+
+C1 -------- restart_withanewgame: JSON.create({ :type_req => :create | :resp | :challenge | :join | :decline
+                                     :resp_code => :ok_create | :reject_create | :join_ok | :join_declined
+                                              :detail => {
+                                                :index => index
+                                                :name => gioco_name,
+                                                :prive => {val =>treu/false, pin =>"1234"}
+                                                :class => true/false
+                                                :opt => {<gaeme specific option hash>}
+                                              }
+                                            })
+Le risposte del server a :create è del tipo :resp e in :resp_code si trova la risposta.
+Il server può rifiutare l'offerta (:resp => :reject_create) in quanto è possibile che l'avversario
+o si sia scollegato oppure abbia per primo lanciato una nuova sfida. Se la sfida viene mandata
+all'avversario, allora viene manadata la risposta :resp_code => :ok_create.
+Il secondo giocatore riceve lo stesso messaggio con  :type_req => :challenge. Il secondo giocatore
+può ora rifiutare (:type_req => :decline) oppure accettare (:type_req => :join) mandando al server
+il messaggio  restart_withanewgame con la :type_req scelta. Il primo giocatore riceve la risposta dal server
+con :type_req => :resp e con :resp_code => :join_ok | :join_declined a seconda che il secondo 
+giocatore abbia accettato o meno la sfida.
+
+
+==  Errori ==
+Quando il server vuole manadare un messaggio di errore generico al client
+esso lo può sempre fare con:
+
+C <------------ srv_error: code ------------------ S
+Code rappresenta il codice dell'errore
+
+8) Chat
+Sono disponibili due chat, una nella lobby dove si trovano i tavoli di gioco e una 
+privata del tavolo.
+
+C <------------ CHATTAVOLO: JSON.create({:username => username, :body => "blabla-msg", :time => "2018-10-16 00:14:54 +0200"} ------------------ S
+C <------------ CHATLOBBY: JSON.create({:username => username, :body => "blabla-msg", :time => "2018-10-16 00:14:54 +0200"} ------------------ S
+
+C ------------ CHATTAVOLO: messaggio ------------------> S
+C ------------ CHATLOBBY: messaggio ------------------> S
+
+== Keep Alive ==
+Viene usato il ping/pong del protocollo websocket.
+
+== Messaggi algoritmo di gioco ==
+
+Sul server viene creata una instanza della classe CoreGame<game>, dove
+<game> sta per l'instanza del core del gioco in questione (Mariazza, briscola, ...)
+Quando il client manda un messaggio al server, esso viene ricevuto da un 
+'net adaption layer'(NAL_Server_CoreGame<game>) il quale chiama poi le 
+funzioni di CoreGame<game> che nella versione contro la cpu vengono chiamate dalla gui.
+Dal lato client, la classe <game>Gfx non utilizza l'oggetto CoreGame<game>, ma bensi' 
+l'adapter NAL_Gfx_CoreGame<game> che genera i messaggi da mandare sul socket del
+server.
+  *** Messaggi direzione server (C ---> S) ***
+    alg_player_change_briscola:  card_briscola, card_on_hand
+    alg_player_declare: name_decl
+    alg_player_cardplayed: lbl_card
+    start_new_match:              # nota: quando ogni giocatore al tavolo ha
+                                  # chiamato start_new_match allora NAL chiama il
+                                  # metodo gui_new_match 
+    gui_new_segno:    # automatico se necessario, nessun argomento passato           
+    
+  *** Messaggi direzioni client (C <---- S)
+  In questo caso la classe <game>Gfx non viene chiamata direttamente dal 
+  server socket, ma viene ricevuto da un NAL_Gfx_CoreGame<game> il quale ricrea i vari oggetti
+  per la classe <game>Gfx.  
+  Per quanto riguarda il lato server, ogni giocatore ha associato una instanza di
+  NAL_Server_Algorithm in modo da mandare i messaggi sul socket nel modo qua sotto
+  indicato.
+    
+    onalg_new_match: JSON.create([gioco_name, [players], {options}])
+       onalg_new_match viene usato in modo differente dall'interfaccia offline
+       dove compaiono solo i nomi dei giocatori. I parametri aggiunti servono
+       per sopperire alle info che vengono date a gfx al momento dello start.
+       Per coerenza con gli altri messaggi si potrebbe cambiare l'interfaccia
+       anche per il gioco offline, anche se parametri come gioco_name in questo
+       caso non hanno senso
+    onalg_new_giocata: carte1, carte2,...carte5, briscola
+    onalg_newmano: login_name
+    onalg_manoend: JSON.create(player_best.name, carte_prese_mano, punti_presi) 
+    onalg_pesca_carta: c1
+    onalg_giocataend: JSON.create(best_pl_points) 
+    onalg_game_end: JSON.create(best_pl_segni)
+    onalg_have_to_play:  # in questo caso, siccome la struttura command_decl_avail
+                         # è complessa ho optato per 
+                         # JSON.create([player.name, command_decl_avail])
+                         # per ricevere si usa JSON.parse. Da notare che in un 1K
+                         # si possono mandare più di 20 comandi
+    onalg_player_has_changed_brisc: login_player, card_briscola, card_on_hand
+    onalg_player_has_played: login_player, lbl_card
+        - Spazzino e derivati: [login_player, [lbl_card, [prese]]
+    onalg_player_has_declared: login_player, name_decl, points
+    onalg_player_has_getpoints: login_player,  points
+    onalg_player_cardsnot_allowed: login_player, carte1, carte2, ....
+    onalg_player_has_taken: login_player, carte1, carte2, ....
+    onalg_gameinfo: JSON.create({:deckcard => :_Ab })
+	  onalg_generic: JSON.create([:method_name, {...arguments}])
+
+
+=== Protocollo non ancora implementato ===
+
+== Premessa sulla riconnessione
+Dato che il server cuperativa.invido.it è a basso livello di connessioni,
+decido di creare un gioco a modalità senza connessione permanente.
+Dopo il login il server manda un messaggio game_status
+C ------------------- game_status {status: (none|reqested|ongoing), on-state:{name:(birscola,...),{staus:{game details}} }}> 
+In questo modo il client può ripristinare immediatamente lo stato del gioco precedente.
+Il server deve salvare lo stato del gioco quando: 
+- il client lo richiede
+- il client si disconnette
+- il server esegue un shutdown
+In questo modo una partita non finisce mai. Per finrla, oltre al comando abbandono, si potrebbe
+implementare il comando annullla e claim_victory.  
+
+
+== Ripristino briscola ==
+- Mandare le stesse info che vengono mandata con alg_newmatch
+- Mandare le carte nel mazzo, la briscola, le carte dei giocatori, il punteggio
+dei giocatori,  chi ha preso l'ultima mano, a chi tocca,
+le carte che sono in tavola e quali crate hanno preso i giocatori.
+Queste info vanno mandate al briscola_gfx che provvederà ad attualizzare il suo stato.
+
+=== Aspettare il collegamento del giocatore
+Quanto aspettare? Solo quando il programma si scollega perchè fa un crash oppure la 
+linea è instabile. Se un giocatore risponde alla domanda "vuoi finire la partita?"
+con un si, a queso punto è chiaro che abbandona la partita perdendola.
+Con meno giocatori il robot abbandona la partita, invece deve fare
+richiesta per avere la partita vinta.
+
+C ------------ player_request  JSON.create({:cmd => :assign_gamewin, :det => :opponent_leaved | timeout}) ----> S 
+
+=== Informazioni ===
+Autore: Igor Sarzi Sartori
+Data: 29.10.2018
+Versione: 17-websocket
+
+
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
